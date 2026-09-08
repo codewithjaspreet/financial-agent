@@ -1,0 +1,22 @@
+[project]
+name = "financial-agent"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.19.2",
+    "fastapi>=0.141.1",
+    "google-genai>=2.22.0",
+    "langchain-google-genai>=4.4.0",
+    "langgraph>=1.2.11",
+    "passlib[bcrypt]>=1.7.4",
+    "psycopg[binary]>=3.3.5",
+    "pydantic-settings>=2.15.0",
+    "pyjwt>=2.13.0",
+    "pytest>=9.1.1",
+    "sqlalchemy>=2.0.52",
+    "uvicorn>=0.52.4",
+]
+
+[tool.pyrefly]
+python-interpreter-path = ".venv/bin/python"
+
