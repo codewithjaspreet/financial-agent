@@ -45,6 +45,24 @@ class PendingEvent(Base):
         nullable=False,
     )
 
+    # What this event is blocked on -- e.g. the payment ref a reversal reverses,
+    # so we know what to check for when retry_pending runs.
+    waiting_for: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    retry_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    tries: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -1,14 +1,17 @@
 from dataclasses import dataclass
 from uuid import UUID
+import bcrypt
 import jwt
 from datetime import datetime, timedelta, timezone
 from app.config.config import settings
 from app.config.db import get_admin_session
 from app.models.user import User as UserModel
 from sqlalchemy import select
-from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Calling bcrypt directly, not through passlib's CryptContext: passlib 1.7.4's
+# version probe assumes an older bcrypt API (it reads `bcrypt.__about__`,
+# removed in bcrypt 4+) and crashes on every hash/verify call in this
+# environment. bcrypt itself works fine -- this sidesteps a broken shim.
 
 @dataclass
 class User:
@@ -17,10 +20,10 @@ class User:
     role: str
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return pwd_context.verify(password, password_hash)
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
 def login(email: str, password: str) -> str:

@@ -10,9 +10,24 @@ def to_paise(amount: str | int | Decimal) -> int:
     return int((value * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
+def _indian_grouping(digits: str) -> str:
+    """'4200000' -> '42,00,000' (last 3 digits, then pairs, not Python's default groups-of-3)."""
+    if len(digits) <= 3:
+        return digits
+    last_three, remaining = digits[-3:], digits[:-3]
+    groups = []
+    while len(remaining) > 2:
+        groups.insert(0, remaining[-2:])
+        remaining = remaining[:-2]
+    if remaining:
+        groups.insert(0, remaining)
+    return ",".join(groups) + "," + last_three
+
+
 def format_money(paise: int) -> str:
-    rupees = Decimal(paise) / Decimal(100)
-    return f"₹{rupees:,.2f}"
+    sign = "-" if paise < 0 else ""
+    rupees, remainder_paise = divmod(abs(paise), 100)
+    return f"{sign}₹{_indian_grouping(str(rupees))}.{remainder_paise:02d}"
 
 
 def format_short(paise: int) -> str:

@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     max_tool_calls: int = 10
     max_seconds: int = 20
     fake_bad_number: bool = False
+    provider_mode: str = "ok"  # ok | timeout_then_sent | timeout_then_lost -- see actions.FakeProvider
 
     class Config:
         env_file = ".env"
