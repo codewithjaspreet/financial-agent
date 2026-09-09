@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from app.config.db import get_admin_session
+from app.models.advance import Advance
 from app.models.claims import Claim
 from app.models.credit_note import CreditNote
 from app.models.customer import Customer
@@ -61,11 +62,13 @@ def make_conflicting_evidence(session, tenant_id: UUID) -> dict:
     """#1: ERP says 42L owed; a claim says 8L already paid, not reflected."""
     cust = Customer(id=fixed_id("cust:conflict"), tenant_id=tenant_id, name="Conflict Corp",
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
+    session.add(cust)
+    session.flush()  # customer must exist before anything FKs to it
     inv = Invoice(id=fixed_id("inv:conflict-1"), entity_id=fixed_id("inv:conflict-1:entity"),
                    tenant_id=tenant_id, customer_id=cust.id, number="CONF-1",
                    issue_date=date(2026, 7, 1), due_date=date(2026, 8, 1), amount=42_00_000_00,
                    invoice_type="invoice", **_dates(date(2026, 7, 1)))
-    session.add_all([cust, inv])
+    session.add(inv)
     session.flush()
     claim = Claim(id=fixed_id("claim:conflict-1"), tenant_id=tenant_id, customer_id=cust.id,
                    claim_type="paid", amount_text="8L", amount_paise=8_00_000_00,
@@ -87,7 +90,16 @@ def make_three_abcs(session, tenant_id: UUID) -> dict:
 
 
 def make_three_policies(session, tenant_a: UUID, tenant_b: UUID, tenant_c: UUID) -> dict:
-    """#3: same invoice/payment pattern, three tenants, three different outstanding numbers."""
+    """
+    #3: identical invoice/dispute/advance pattern seeded under three tenants,
+    three different policy rows -> three different outstanding numbers, with
+    ZERO code differences between them.
+
+    Base invoice 20L + a disputed invoice 5L + an APPROVED 3L advance:
+      A (default):        exclude disputed, net the approved advance -> 20L - 3L = 17L
+      B (include disputed): 20L + 5L, still nets the advance          -> 25L - 3L = 22L
+      C (no advance netting): exclude disputed, advance NOT netted    -> 20L
+    """
     policy_b = {**DEFAULT_POLICY, "exclude_disputed": False, "grace_days": 3}
     policy_c = {**DEFAULT_POLICY, "net_advances": False, "allocation": "pro_rata"}
     save_policy(session, tenant_b, policy_b)
@@ -97,11 +109,28 @@ def make_three_policies(session, tenant_a: UUID, tenant_b: UUID, tenant_c: UUID)
     for key, tenant_id in [("policy-a", tenant_a), ("policy-b", tenant_b), ("policy-c", tenant_c)]:
         cust = Customer(id=fixed_id(f"cust:{key}"), tenant_id=tenant_id, name="Policy Test Co",
                          credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
-        inv = Invoice(id=fixed_id(f"inv:{key}"), entity_id=fixed_id(f"inv:{key}:entity"),
+        session.add(cust)
+        session.flush()
+
+        base_entity = fixed_id(f"inv:{key}:entity")
+        disputed_entity = fixed_id(f"inv:{key}-disputed:entity")
+        base_inv = Invoice(id=fixed_id(f"inv:{key}"), entity_id=base_entity,
                       tenant_id=tenant_id, customer_id=cust.id, number="POL-1",
                       issue_date=date(2026, 7, 1), due_date=date(2026, 8, 1), amount=20_00_000_00,
                       invoice_type="invoice", **_dates(date(2026, 7, 1)))
-        session.add_all([cust, inv])
+        disputed_inv = Invoice(id=fixed_id(f"inv:{key}-disputed"), entity_id=disputed_entity,
+                      tenant_id=tenant_id, customer_id=cust.id, number="POL-2",
+                      issue_date=date(2026, 7, 1), due_date=date(2026, 8, 1), amount=5_00_000_00,
+                      invoice_type="invoice", **_dates(date(2026, 7, 1)))
+        dispute = Dispute(id=fixed_id(f"dispute:{key}"), tenant_id=tenant_id, customer_id=cust.id,
+                       invoice_entity_id=disputed_entity, amount_paise=5_00_000_00,
+                       reason="Short supply", status="open", **_dates(date(2026, 7, 10)))
+        advance = Advance(
+                       id=fixed_id(f"advance:{key}"), entity_id=fixed_id(f"advance:{key}:entity"),
+                       tenant_id=tenant_id, customer_id=cust.id, amount=3_00_000_00,
+                       status="approved", **_dates(date(2026, 7, 20)))
+        session.add_all([base_inv, disputed_inv, dispute, advance])
+        session.flush()
         ids[key] = cust.id
     return ids
 
@@ -110,6 +139,8 @@ def make_as_of_case(session, tenant_id: UUID) -> dict:
     """#4: 42L owed on 1 Sep, 10L paid on 2 Sep -- as-of 1 Sep must still show 42L."""
     cust = Customer(id=fixed_id("cust:asof"), tenant_id=tenant_id, name="AsOf Co",
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
+    session.add(cust)
+    session.flush()
     inv = Invoice(id=fixed_id("inv:asof-1"), entity_id=fixed_id("inv:asof-1:entity"),
                   tenant_id=tenant_id, customer_id=cust.id, number="ASOF-1",
                   issue_date=date(2026, 8, 1), due_date=date(2026, 9, 1), amount=42_00_000_00,
@@ -117,7 +148,8 @@ def make_as_of_case(session, tenant_id: UUID) -> dict:
     pay = Payment(id=fixed_id("pay:asof-1"), entity_id=fixed_id("pay:asof-1:entity"),
                    tenant_id=tenant_id, customer_id=cust.id, ref="ASOF-PAY-1",
                    amount=10_00_000_00, value_date=date(2026, 9, 2), **_dates(date(2026, 9, 2)))
-    session.add_all([cust, inv, pay])
+    session.add_all([inv, pay])
+    session.flush()
     return {"customer_id": cust.id}
 
 
@@ -186,11 +218,14 @@ def make_silent_customer(session, tenant_id: UUID) -> dict:
     """#8: a customer with invoices but zero messages -- absence of evidence isn't evidence of absence."""
     cust = Customer(id=fixed_id("cust:silent"), tenant_id=tenant_id, name="Silent Co",
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
+    session.add(cust)
+    session.flush()
     inv = Invoice(id=fixed_id("inv:silent-1"), entity_id=fixed_id("inv:silent-1:entity"),
                   tenant_id=tenant_id, customer_id=cust.id, number="SIL-1",
                   issue_date=date(2026, 7, 1), due_date=date(2026, 8, 1), amount=9_00_000_00,
                   invoice_type="invoice", **_dates(date(2026, 7, 1)))
-    session.add_all([cust, inv])
+    session.add(inv)
+    session.flush()
     return {"customer_id": cust.id}
 
 
@@ -237,6 +272,8 @@ def make_credit_note_on_paid(session, tenant_id: UUID) -> dict:
     """#14: a credit note issued after full payment -- creates a negative (credit) balance."""
     cust = Customer(id=fixed_id("cust:creditnote"), tenant_id=tenant_id, name="CreditNote Co",
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
+    session.add(cust)
+    session.flush()
     inv = Invoice(id=fixed_id("inv:creditnote-1"), entity_id=fixed_id("inv:creditnote-1:entity"),
                   tenant_id=tenant_id, customer_id=cust.id, number="CN-1",
                   issue_date=date(2026, 6, 1), due_date=date(2026, 7, 1), amount=10_00_000_00,
@@ -248,7 +285,8 @@ def make_credit_note_on_paid(session, tenant_id: UUID) -> dict:
                        tenant_id=tenant_id, customer_id=cust.id, invoice_entity_id=inv.entity_id,
                        amount=2_00_000_00, reason="Post-payment rate correction",
                        **_dates(date(2026, 8, 1)))
-    session.add_all([cust, inv, pay, note])
+    session.add_all([inv, pay, note])
+    session.flush()
     return {"customer_id": cust.id}
 
 

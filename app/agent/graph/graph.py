@@ -1,9 +1,3 @@
-"""
-Wires the 8 nodes into a fixed-order state machine (§3.6). No unbounded
-reason-act loop -- every edge here is either a straight line or one of a
-small, fixed set of named routes. The only loop is step_write <-> step_verify,
-and it is capped at exactly one retry.
-"""
 from functools import partial
 from typing import Any, cast
 
@@ -44,9 +38,6 @@ def build_graph(session: Session):
     session. A fresh graph per request because each run needs its own
     tenant-scoped session -- nothing here is shared across tenants or runs.
     """
-    # cast: pyrefly can't verify a TypedDict's synthesized attrs against
-    # langgraph's internal Protocol bound statically -- works fine at runtime
-    # (verified: this graph runs end-to-end against real Postgres + Gemini).
     graph = StateGraph(cast(Any, State))
 
     graph.add_node("start", partial(nodes.step_start, session))

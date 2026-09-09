@@ -89,33 +89,18 @@ def _promise_status(claim: Claim, payments: list[Payment], today: date, promises
     return "broken" if (today - due).days > PROMISE_GRACE_DAYS else "overdue"
 
 
-def update_promises(session: Session, tenant_id: UUID, customer_id: UUID, today: date) -> dict[UUID, str]:
-    """{claim_id: status} for every promise-type claim this customer has made."""
-    claims = list(session.scalars(
-        select(Claim).where(Claim.tenant_id == tenant_id, Claim.customer_id == customer_id)
-        .order_by(Claim.created_at)
-    ).all())
+def _promise_statuses(claims: list[Claim], payments: list[Payment], today: date) -> dict[UUID, str]:
+    """Pure, in-memory: no query here -- callers batch-fetch claims/payments once."""
     promises = [c for c in claims if c.claim_type == "promise"]
-    if not promises:
-        return {}
-
-    payments = list(session.scalars(
-        select(Payment).where(Payment.tenant_id == tenant_id, Payment.customer_id == customer_id)
-    ).all())
-
     return {claim.id: _promise_status(claim, payments, today, promises) for claim in promises}
 
 
-def find_conflicts(session: Session, tenant_id: UUID, customer_id: UUID, claims: list[Claim]) -> list[dict]:
+def _find_conflicts(claims: list[Claim], payments: list[Payment]) -> list[dict]:
     """
-    A 'paid' claim with no matching payment in the ledger -> reported, never
-    used to adjust the balance. This is the whole answer to "claim vs.
-    verified state": we only ever read payments here to compare, never write.
+    Pure, in-memory: a 'paid' claim with no matching payment -> reported,
+    never used to adjust the balance. This is the whole answer to "claim vs.
+    verified state": we only ever compare against payments here, never write.
     """
-    payments = list(session.scalars(
-        select(Payment).where(Payment.tenant_id == tenant_id, Payment.customer_id == customer_id)
-    ).all())
-
     conflicts = []
     for claim in claims:
         if claim.claim_type != "paid" or claim.amount_paise is None or claim.claim_date is None:
@@ -134,6 +119,29 @@ def find_conflicts(session: Session, tenant_id: UUID, customer_id: UUID, claims:
                 "note": "customer claims this was paid; no matching payment found in the ERP",
             })
     return conflicts
+
+
+def update_promises(session: Session, tenant_id: UUID, customer_id: UUID, today: date) -> dict[UUID, str]:
+    """{claim_id: status} for every promise-type claim this ONE customer has made."""
+    claims = list(session.scalars(
+        select(Claim).where(Claim.tenant_id == tenant_id, Claim.customer_id == customer_id)
+        .order_by(Claim.created_at)
+    ).all())
+    if not any(c.claim_type == "promise" for c in claims):
+        return {}
+
+    payments = list(session.scalars(
+        select(Payment).where(Payment.tenant_id == tenant_id, Payment.customer_id == customer_id)
+    ).all())
+    return _promise_statuses(claims, payments, today)
+
+
+def find_conflicts(session: Session, tenant_id: UUID, customer_id: UUID, claims: list[Claim]) -> list[dict]:
+    """Single-customer convenience wrapper -- fetches payments then delegates to the pure version."""
+    payments = list(session.scalars(
+        select(Payment).where(Payment.tenant_id == tenant_id, Payment.customer_id == customer_id)
+    ).all())
+    return _find_conflicts(claims, payments)
 
 
 def get_signals(session: Session, tenant_id: UUID, customer_ids: list[UUID], on_date: date) -> dict[UUID, dict]:
@@ -165,11 +173,22 @@ def get_signals(session: Session, tenant_id: UUID, customer_ids: list[UUID], on_
     for dispute in disputes:
         open_disputes_by_customer[dispute.customer_id] += 1
 
+    # ONE query for every customer's payments, not one query per customer --
+    # update_promises/find_conflicts each used to re-query this per customer,
+    # which is exactly the N+1-in-a-loop pattern §7 checks for.
+    payments = session.scalars(
+        select(Payment).where(Payment.tenant_id == tenant_id, Payment.customer_id.in_(customer_ids))
+    ).all()
+    payments_by_customer: dict[UUID, list[Payment]] = defaultdict(list)
+    for payment in payments:
+        payments_by_customer[payment.customer_id].append(payment)
+
     signals = {}
     for customer_id in customer_ids:
         claims = claims_by_customer.get(customer_id, [])
-        promise_status = update_promises(session, tenant_id, customer_id, on_date)
-        conflicts = find_conflicts(session, tenant_id, customer_id, claims)
+        customer_payments = payments_by_customer.get(customer_id, [])
+        promise_status = _promise_statuses(claims, customer_payments, on_date)
+        conflicts = _find_conflicts(claims, customer_payments)
 
         customer_messages = messages_by_customer.get(customer_id, [])
         if customer_messages:
