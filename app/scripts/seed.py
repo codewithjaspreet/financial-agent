@@ -320,6 +320,10 @@ DEMO_PASSWORD = "demo-password-123"
 
 
 def seed_demo(session) -> dict:
+    if session.get(Customer, fixed_id("cust:conflict")) is not None:
+        print("demo already seeded, skipping")
+        return {}
+
     for tenant_id, name in [
         (DEMO_TENANT_A, "Demo Tenant A"), (DEMO_TENANT_B, "Demo Tenant B"),
         (DEMO_TENANT_C, "Demo Tenant C"), (DEMO_TENANT_OTHER, "Other Tenant"),

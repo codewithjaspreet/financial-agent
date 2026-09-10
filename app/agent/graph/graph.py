@@ -61,4 +61,5 @@ def build_graph(session: Session):
     graph.add_conditional_edges("verify", _after_verify, {"write": "write", "stop": "finalize"})
     graph.add_edge("finalize", END)
 
+
     return graph.compile()

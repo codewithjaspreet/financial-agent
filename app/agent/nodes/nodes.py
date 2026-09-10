@@ -58,8 +58,6 @@ def step_start(session: Session, state: State) -> State:
     state["policy"] = rules
     state["policy_version"] = version
     state["facts"] = new_facts()
-    # The as-of date goes through a placeholder too, same as money -- §3.3 is a
-    # bright line: no raw digit escapes without going through a tool.
     date_key = add_fact(state["facts"], "as_of_date", value=state["on_date"].isoformat(), source="question")
     state["on_date_fact"] = "{{" + date_key + "}}"
     state["tool_calls"] = 0
