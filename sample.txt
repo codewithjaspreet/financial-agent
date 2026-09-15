@@ -1,0 +1,17 @@
+uv run pytest app/tests/test_edge_cases.py::test_edge_01_conflicting_evidence -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_02_ambiguous_entity -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_03_tenant_specific_policy -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_04_as_of_query -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_05_backdated_entry -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_06_partial_payment_allocation -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_07_duplicate_and_out_of_order_events -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_08_missing_evidence -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_09_hallucinated_figure -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_10_prompt_injection -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_11_action_failure -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_12_cross_tenant_tool_call -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_13_stale_promise -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_14_credit_note_against_settled_invoice -q
+uv run pytest app/tests/test_edge_cases.py::test_edge_15_rounding_and_precision -q
+
+
