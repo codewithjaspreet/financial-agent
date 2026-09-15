@@ -10,11 +10,9 @@ number to the user you'd need both to fail at once.
 import re
 
 _PLACEHOLDER_RE = re.compile(r"\{\{(f\d+)\}\}")
-
-# Checked on the text with all {{fN}} placeholders already removed.
 BAD_PATTERNS = [
-    r"\d",                      # any raw digit
-    r"[₹$]",                    # currency symbols
+    r"\d",
+    r"[₹$]",
     r"\brs\.?\b",
     r"\b(lakh|lakhs|crore|crores|thousand|hundred|million|billion)\b",
     r"\b(one|two|three|four|five|six|seven|eight|nine|ten|"
@@ -48,3 +46,29 @@ def fill_in_numbers(text: str, facts: dict) -> str:
         return fact["display"]
 
     return _PLACEHOLDER_RE.sub(replace, text)
+
+
+# facts = {
+#     "items": {
+#         "f1": {
+#             "display": "₹18,40,000",
+#             "is_claim": False
+#         }
+#     }
+# }
+
+#Step 1 - Gemini -  Your outstanding balance is {{f1}}.
+
+# Step 2 — check_facts_exist() - Your outstanding balance is .
+
+# Checks from fact reference: {{{f1}}}
+
+# 18,40,000
+# ₹
+# Rs
+# lakh
+# crore
+
+# fill_in_numbers() -
+
+# Your outstanding balance is ₹18,40,000.

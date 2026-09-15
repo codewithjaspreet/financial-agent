@@ -34,11 +34,7 @@ def new_facts() -> dict:
 
 def add_fact(facts: dict, kind: str, paise: int | None = None, value=None,
              is_claim: bool = False, source: str = "") -> str:
-    """
-    Stores one value, returns its placeholder key ("f3"). `paise` is a real
-    verified amount; pass is_claim=True for a value that came from a claim,
-    not the ledger -- render.py renders those as "reportedly ... (unverified)".
-    """
+
     key = f"f{facts['next']}"
     display = format_money(paise) if paise is not None else str(value)
     facts["items"][key] = {
@@ -50,11 +46,7 @@ def add_fact(facts: dict, kind: str, paise: int | None = None, value=None,
 
 
 def add_date_fact(facts: dict, kind: str, value, source: str = "") -> str | None:
-    """
-    Dates go through the SAME placeholder mechanism as money (§3.3 is a
-    bright line: no raw digit escapes without going through a tool, and a
-    date written in prose is still a digit). Returns None if value is None.
-    """
+
     if value is None:
         return None
     return add_fact(facts, kind, value=value.isoformat(), source=source)
@@ -231,7 +223,7 @@ def run_tool(session: Session, tenant_id: UUID, run: dict[str, Any], name: str, 
         raise BudgetExceeded("used too many tool calls")
 
     if "tenant_id" in args:
-        args = {k: v for k, v in args.items() if k != "tenant_id"}  # model tried to pass one -- dropped
+        args = {k: v for k, v in args.items() if k != "tenant_id"}
 
     result = TOOLS[name](session, tenant_id, run, **args)
 
@@ -243,3 +235,6 @@ def run_tool(session: Session, tenant_id: UUID, run: dict[str, Any], name: str, 
         ))
 
     return result
+
+
+

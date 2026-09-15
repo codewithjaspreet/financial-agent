@@ -8,11 +8,6 @@ from app.config.db import get_admin_session
 from app.models.user import User as UserModel
 from sqlalchemy import select
 
-# Calling bcrypt directly, not through passlib's CryptContext: passlib 1.7.4's
-# version probe assumes an older bcrypt API (it reads `bcrypt.__about__`,
-# removed in bcrypt 4+) and crashes on every hash/verify call in this
-# environment. bcrypt itself works fine -- this sidesteps a broken shim.
-
 @dataclass
 class User:
     user_id: UUID

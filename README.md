@@ -132,7 +132,7 @@ curl -s 'http://localhost:8000/customers/CUSTOMER_UUID/balance?on_date=2026-09-0
 
 curl -s http://localhost:8000/ask \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"question":"What did AsOf Co owe as of 1 September?","on_date":"2026-09-01"}'
+  -d '{"question":"What did Rajasthan Pipe Works owe as of 1 September?","on_date":"2026-09-01"}'
 
 curl -s http://localhost:8000/runs/RUN_UUID/trace \
   -H "Authorization: Bearer $TOKEN"

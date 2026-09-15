@@ -83,14 +83,14 @@ def approve_and_send(session: Session, tenant_id: UUID, idem_key: str, provider:
     row.status = "sending"
     row.attempts += 1
     row.updated_at = datetime.now(timezone.utc)
-    session.commit()  # release the row lock BEFORE the network call
+    session.commit()
 
     try:
         provider_id = provider.send(row.message, key=idem_key)
         new_status = "sent"
     except TimeoutError:
         provider_id = None
-        new_status = "unknown"  # a timeout is not a failure -- it's an unknown
+        new_status = "unknown"
 
     row = session.scalar(select(Outbound).where(Outbound.id == outbound_id).with_for_update())
     assert row is not None, "outbound row disappeared between the two commits"

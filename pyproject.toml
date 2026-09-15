@@ -19,6 +19,12 @@ dependencies = [
     "uvicorn>=0.52.4",
 ]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["app/tests"]
+# Live Gemini tests in test_agent.py can flake. Prefer make eval in the room.
+# Run the full suite with: make test
+
 [tool.pyrefly]
 python-interpreter-path = ".venv/bin/python"
 

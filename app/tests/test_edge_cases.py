@@ -50,10 +50,10 @@ def test_edge_01_conflicting_evidence(demo, db_session):
 
 
 def test_edge_02_ambiguous_entity(demo, db_session):
-    """ABC Traders, ABC Trading Co, ABC Suppliers all exist; a vague mention
+    """Agarwal Traders, Agarwal Trading Co, Agarwal Suppliers all exist; a vague mention
     must return 'unclear' with real options, never a confident guess."""
     policy, _ = get_policy(db_session, demo.DEMO_TENANT_A, NOW)
-    result = entities.find_customer(db_session, demo.DEMO_TENANT_A, policy, "ABC payment done")
+    result = entities.find_customer(db_session, demo.DEMO_TENANT_A, policy, "Agarwal payment done")
     assert result["status"] == "unclear"
     assert len(result["options"]) >= 2
 

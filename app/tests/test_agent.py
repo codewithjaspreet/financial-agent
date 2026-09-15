@@ -98,7 +98,7 @@ def test_tool_smuggled_tenant_id_is_ignored(db_session):
 def test_ambiguous_name_ends_in_clarify_not_a_guess(db_session):
     """Edge case #2, run through the actual compiled graph."""
     tenant, user = _setup(db_session)
-    for name in ["ABC Traders", "ABC Trading Co", "ABC Suppliers"]:
+    for name in ["Agarwal Traders", "Agarwal Trading Co", "Agarwal Suppliers"]:
         db_session.add(Customer(id=uuid4(), tenant_id=tenant.id, name=name, credit_limit=0,
                                  terms_days=30, **dates(date(2026, 1, 1))))
     db_session.flush()
@@ -107,7 +107,7 @@ def test_ambiguous_name_ends_in_clarify_not_a_guess(db_session):
     graph = build_graph(db_session)
     final = graph.invoke({
         "run_id": uuid4(), "tenant_id": tenant.id, "user_id": user.id,
-        "question": "ABC payment done, please update",
+        "question": "Agarwal payment done, please update",
         "on_date": date(2026, 9, 5), "at_time": datetime.now(timezone.utc),
     })
     assert final["state"] == "clarify"

@@ -118,9 +118,7 @@ def step_gather(session: Session, state: State) -> State:
             args["customer_id"] = str(customer_id)
 
         try:
-            # tools.py only ever touches keys State already declares (facts,
-            # tool_calls, policy, ...) -- this cast documents that boundary
-            # rather than widening tools.py's signature to plain dict.
+
             result = run_tool(session, state["tenant_id"], cast(dict[str, Any], state), tool_name, args)
         except BudgetExceeded:
             state["state"] = "abstain"

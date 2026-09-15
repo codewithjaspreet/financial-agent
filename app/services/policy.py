@@ -21,6 +21,8 @@ def check_policy(rules: dict) -> list[str]:
     return [f"unknown key: {key}" for key in rules if key not in KNOWN_KEYS]
 
 
+
+# For this tenant, give me the newest policy whose effective date is not after the requested time
 def get_policy(session: Session, tenant_id: UUID, at_time: datetime) -> tuple[dict, int]:
     """The policy in force at at_time: latest version whose effective_from <= at_time."""
     policy = session.scalar(

@@ -10,6 +10,9 @@ tx_from / tx_to
 
 """
 
+from sqlalchemy.orm.session import Session
+
+
 from sqlalchemy import text
 from datetime import date, datetime, timezone
 from uuid import UUID
@@ -23,7 +26,7 @@ from app.config.config import settings
 admin_engine = create_engine(settings.database_url, pool_pre_ping=True)
 app_engine = create_engine(settings.app_database_url, pool_pre_ping=True)
 
-AdminSessionLocal = sessionmaker(bind=admin_engine, expire_on_commit=False)
+AdminSessionLocal = sessionmaker[Session](bind=admin_engine, expire_on_commit=False)
 AppSessionLocal = sessionmaker(bind=app_engine, expire_on_commit=False)
 
 
@@ -42,17 +45,6 @@ def get_admin_session() -> Session:
 
 def get_session(tenant_id: UUID) -> Session:
     """
-    set_config(), not "SET LOCAL x = :param" -- SET is a utility statement
-    and Postgres rejects a bind parameter in that position (syntax error).
-    set_config() is a normal SQL function, so it takes a real parameter safely.
-
-    The third argument is false (SESSION-scoped, not LOCAL/transaction-scoped):
-    some service functions (e.g. actions.approve_and_send) commit partway
-    through a single request to release a row lock before a network call --
-    a LOCAL setting would vanish at that commit. SESSION-scoped survives
-    commits within this session, and is still always reset here, fresh,
-    before a single query runs on a freshly checked-out connection -- so it
-    can never leak a previous request's tenant into a new one.
     """
     session = AppSessionLocal()
     session.execute(text("SELECT set_config('app.tenant_id', :tenant_id, false)"), {"tenant_id": str(tenant_id)})

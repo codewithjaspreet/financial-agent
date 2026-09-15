@@ -19,10 +19,7 @@ def save_claim(session: Session, tenant_id: UUID, customer_id: UUID | None,
                claim_type: str, claimed_paise: int | None, claimed_date: date | None,
                message_id: UUID | None, confidence: int,
                expires_at: datetime | None = None) -> UUID:
-    """
-    Insert-only, same idea as insert_fact for money: a claim is never edited.
-    A newer claim about the same promise is a new row, not an update to the old one.
-    """
+
     claim = Claim(
         tenant_id=tenant_id,
         customer_id=customer_id,
@@ -55,17 +52,14 @@ def get_claims(session: Session, tenant_id: UUID, customer_ids: list[UUID],
 
     by_customer: dict[UUID, list[Claim]] = defaultdict(list)
     for claim in rows:
-        if claim.customer_id is not None:  # unmatched-entity claims aren't grouped here
+        if claim.customer_id is not None:
             by_customer[claim.customer_id].append(claim)
     return dict(by_customer)
 
 
 def _promise_status(claim: Claim, payments: list[Payment], today: date, promises: list[Claim]) -> str:
-    """
-    Computed fresh every call, never written to a column: a promise's status
-    ("broken", "kept") is implied by today's date and whether a payment turned
-    up -- not an independent fact worth storing and getting out of sync.
-    """
+
+    """Decides whether a payment promise is open, overdue, broken, kept, or replaced."""
     newer_exists = any(
         other.created_at > claim.created_at
         for other in promises
@@ -90,17 +84,17 @@ def _promise_status(claim: Claim, payments: list[Payment], today: date, promises
 
 
 def _promise_statuses(claims: list[Claim], payments: list[Payment], today: date) -> dict[UUID, str]:
-    """Pure, in-memory: no query here -- callers batch-fetch claims/payments once."""
+    """Takes all promise claims for a customer and calculates the status of each one."""
     promises = [c for c in claims if c.claim_type == "promise"]
     return {claim.id: _promise_status(claim, payments, today, promises) for claim in promises}
 
 
 def _find_conflicts(claims: list[Claim], payments: list[Payment]) -> list[dict]:
+
     """
-    Pure, in-memory: a 'paid' claim with no matching payment -> reported,
-    never used to adjust the balance. This is the whole answer to "claim vs.
-    verified state": we only ever compare against payments here, never write.
+    Checks if a paid claim has a matching payment.
     """
+
     conflicts = []
     for claim in claims:
         if claim.claim_type != "paid" or claim.amount_paise is None or claim.claim_date is None:
@@ -159,7 +153,7 @@ def get_signals(session: Session, tenant_id: UUID, customer_ids: list[UUID], on_
     ).all()
     messages_by_customer: dict[UUID, list[Message]] = defaultdict(list)
     for message in messages:
-        if message.customer_id is not None:  # unmatched-entity messages aren't grouped here
+        if message.customer_id is not None:
             messages_by_customer[message.customer_id].append(message)
 
     disputes = session.scalars(
@@ -173,9 +167,6 @@ def get_signals(session: Session, tenant_id: UUID, customer_ids: list[UUID], on_
     for dispute in disputes:
         open_disputes_by_customer[dispute.customer_id] += 1
 
-    # ONE query for every customer's payments, not one query per customer --
-    # update_promises/find_conflicts each used to re-query this per customer,
-    # which is exactly the N+1-in-a-loop pattern §7 checks for.
     payments = session.scalars(
         select(Payment).where(Payment.tenant_id == tenant_id, Payment.customer_id.in_(customer_ids))
     ).all()
@@ -197,7 +188,7 @@ def get_signals(session: Session, tenant_id: UUID, customer_ids: list[UUID], on_
             evidence = "lots" if len(customer_messages) >= 10 else "some"
         else:
             days_since_contact = None
-            evidence = "none"  # absence of evidence is not evidence of absence
+            evidence = "none"
 
         signals[customer_id] = {
             "has_broken_promise": any(status == "broken" for status in promise_status.values()),

@@ -32,6 +32,34 @@ from app.services.policy import save_policy
 MAX_DATE = date(9999, 12, 31)
 MAX_DT = datetime(9999, 12, 31, tzinfo=timezone.utc)
 
+# Display names only. Fixed UUIDs (cust:conflict, …) do not change.
+DEMO_NAMES = {
+    "cust:conflict": "Mehta Steel Industries",
+    "cust:abc-traders": "Agarwal Traders",
+    "cust:abc-trading": "Agarwal Trading Co",
+    "cust:abc-suppliers": "Agarwal Suppliers",
+    "cust:policy-a": "Kailash Distributors",
+    "cust:policy-b": "Kailash Distributors",
+    "cust:policy-c": "Kailash Distributors",
+    "cust:asof": "Rajasthan Pipe Works",
+    "cust:backdated": "Eastern Agro Exports",
+    "cust:partial": "Surya Electricals",
+    "cust:reversal": "Patel Hardware Mart",
+    "cust:silent": "Greenfield Polymers",
+    "cust:injection": "Nexus Auto Parts",
+    "cust:other-tenant": "Horizon Chemicals",
+    "cust:stale-promise": "Vikram Textiles",
+    "cust:creditnote": "Anand Bearings",
+    "cust:rounding": "Lotus Packaging",
+}
+
+DEMO_TENANT_NAMES = {
+    "tenant:demo-a": "Apex Industrial Supplies",
+    "tenant:demo-b": "Bharat Bearings Ltd",
+    "tenant:demo-c": "Coastal Agri Trade",
+    "tenant:demo-other": "Meridian Polymers",
+}
+
 
 def fixed_id(key: str) -> UUID:
     """Deterministic UUID from a human-readable key, so demo ids never change between runs."""
@@ -60,7 +88,7 @@ DEFAULT_POLICY = {
 
 def make_conflicting_evidence(session, tenant_id: UUID) -> dict:
     """#1: ERP says 42L owed; a claim says 8L already paid, not reflected."""
-    cust = Customer(id=fixed_id("cust:conflict"), tenant_id=tenant_id, name="Conflict Corp",
+    cust = Customer(id=fixed_id("cust:conflict"), tenant_id=tenant_id, name=DEMO_NAMES["cust:conflict"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()  # customer must exist before anything FKs to it
@@ -78,10 +106,10 @@ def make_conflicting_evidence(session, tenant_id: UUID) -> dict:
 
 
 def make_three_abcs(session, tenant_id: UUID) -> dict:
-    """#2: ABC Traders, ABC Trading Co, ABC Suppliers -- one vague mention must not resolve."""
+    """#2: Agarwal Traders / Trading Co / Suppliers -- one vague mention must not resolve."""
     ids = {}
-    for key, name in [("abc-traders", "ABC Traders"), ("abc-trading", "ABC Trading Co"),
-                       ("abc-suppliers", "ABC Suppliers")]:
+    for key in ("abc-traders", "abc-trading", "abc-suppliers"):
+        name = DEMO_NAMES[f"cust:{key}"]
         cust = Customer(id=fixed_id(f"cust:{key}"), tenant_id=tenant_id, name=name,
                          credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
         session.add(cust)
@@ -107,7 +135,7 @@ def make_three_policies(session, tenant_a: UUID, tenant_b: UUID, tenant_c: UUID)
 
     ids = {}
     for key, tenant_id in [("policy-a", tenant_a), ("policy-b", tenant_b), ("policy-c", tenant_c)]:
-        cust = Customer(id=fixed_id(f"cust:{key}"), tenant_id=tenant_id, name="Policy Test Co",
+        cust = Customer(id=fixed_id(f"cust:{key}"), tenant_id=tenant_id, name=DEMO_NAMES[f"cust:{key}"],
                          credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
         session.add(cust)
         session.flush()
@@ -137,7 +165,7 @@ def make_three_policies(session, tenant_a: UUID, tenant_b: UUID, tenant_c: UUID)
 
 def make_as_of_case(session, tenant_id: UUID) -> dict:
     """#4: 42L owed on 1 Sep, 10L paid on 2 Sep -- as-of 1 Sep must still show 42L."""
-    cust = Customer(id=fixed_id("cust:asof"), tenant_id=tenant_id, name="AsOf Co",
+    cust = Customer(id=fixed_id("cust:asof"), tenant_id=tenant_id, name=DEMO_NAMES["cust:asof"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -155,7 +183,7 @@ def make_as_of_case(session, tenant_id: UUID) -> dict:
 
 def make_backdated_invoice(session, tenant_id: UUID) -> dict:
     """#5: on system-date 5 Sep, an invoice dated 28 Aug is entered -- valid_time != tx_time."""
-    cust = Customer(id=fixed_id("cust:backdated"), tenant_id=tenant_id, name="Backdated Co",
+    cust = Customer(id=fixed_id("cust:backdated"), tenant_id=tenant_id, name=DEMO_NAMES["cust:backdated"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -172,7 +200,7 @@ def make_backdated_invoice(session, tenant_id: UUID) -> dict:
 
 def make_partial_allocation(session, tenant_id: UUID) -> dict:
     """#6: a 15L receipt against four open invoices -- allocation is a policy call, not silent netting."""
-    cust = Customer(id=fixed_id("cust:partial"), tenant_id=tenant_id, name="Partial Co",
+    cust = Customer(id=fixed_id("cust:partial"), tenant_id=tenant_id, name=DEMO_NAMES["cust:partial"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -192,7 +220,7 @@ def make_partial_allocation(session, tenant_id: UUID) -> dict:
 
 def make_duplicate_and_reversal(session, tenant_id: UUID) -> dict:
     """#7: the same webhook delivered twice, and a reversal that arrives before its payment."""
-    cust = Customer(id=fixed_id("cust:reversal"), tenant_id=tenant_id, name="Reversal Co",
+    cust = Customer(id=fixed_id("cust:reversal"), tenant_id=tenant_id, name=DEMO_NAMES["cust:reversal"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -216,7 +244,7 @@ def make_duplicate_and_reversal(session, tenant_id: UUID) -> dict:
 
 def make_silent_customer(session, tenant_id: UUID) -> dict:
     """#8: a customer with invoices but zero messages -- absence of evidence isn't evidence of absence."""
-    cust = Customer(id=fixed_id("cust:silent"), tenant_id=tenant_id, name="Silent Co",
+    cust = Customer(id=fixed_id("cust:silent"), tenant_id=tenant_id, name=DEMO_NAMES["cust:silent"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -231,7 +259,7 @@ def make_silent_customer(session, tenant_id: UUID) -> dict:
 
 def make_injection_message(session, tenant_id: UUID) -> dict:
     """#10: a customer message contains instructions addressed to the agent."""
-    cust = Customer(id=fixed_id("cust:injection"), tenant_id=tenant_id, name="Injection Co",
+    cust = Customer(id=fixed_id("cust:injection"), tenant_id=tenant_id, name=DEMO_NAMES["cust:injection"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -247,7 +275,7 @@ def make_injection_message(session, tenant_id: UUID) -> dict:
 
 def make_other_tenant_customer(session, other_tenant_id: UUID) -> dict:
     """#12: lives in a DIFFERENT tenant entirely -- the demo tenant's agent must never reach it."""
-    cust = Customer(id=fixed_id("cust:other-tenant"), tenant_id=other_tenant_id, name="Other Tenant Co",
+    cust = Customer(id=fixed_id("cust:other-tenant"), tenant_id=other_tenant_id, name=DEMO_NAMES["cust:other-tenant"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     return {"customer_id": cust.id}
@@ -255,7 +283,7 @@ def make_other_tenant_customer(session, other_tenant_id: UUID) -> dict:
 
 def make_stale_promise(session, tenant_id: UUID) -> dict:
     """#13: promised 12 Aug to pay by 20 Aug; today is well past that with no payment."""
-    cust = Customer(id=fixed_id("cust:stale-promise"), tenant_id=tenant_id, name="Stale Promise Co",
+    cust = Customer(id=fixed_id("cust:stale-promise"), tenant_id=tenant_id, name=DEMO_NAMES["cust:stale-promise"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -270,7 +298,7 @@ def make_stale_promise(session, tenant_id: UUID) -> dict:
 
 def make_credit_note_on_paid(session, tenant_id: UUID) -> dict:
     """#14: a credit note issued after full payment -- creates a negative (credit) balance."""
-    cust = Customer(id=fixed_id("cust:creditnote"), tenant_id=tenant_id, name="CreditNote Co",
+    cust = Customer(id=fixed_id("cust:creditnote"), tenant_id=tenant_id, name=DEMO_NAMES["cust:creditnote"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -293,7 +321,7 @@ def make_credit_note_on_paid(session, tenant_id: UUID) -> dict:
 def make_rounding_case(session, tenant_id: UUID) -> dict:
     """#15: Rs 1,00,000 split three ways -- money.split_money must sum back exactly."""
     from app.utils.money import split_money
-    cust = Customer(id=fixed_id("cust:rounding"), tenant_id=tenant_id, name="Rounding Co",
+    cust = Customer(id=fixed_id("cust:rounding"), tenant_id=tenant_id, name=DEMO_NAMES["cust:rounding"],
                      credit_limit=0, terms_days=30, **_dates(date(2026, 1, 1)))
     session.add(cust)
     session.flush()
@@ -319,15 +347,27 @@ DEMO_EMAIL = "demo@tenant-a.test"
 DEMO_PASSWORD = "demo-password-123"
 
 
+def refresh_demo_labels(session) -> None:
+    """Rename demo rows in place so a re-run updates an already-seeded database."""
+    for key, name in DEMO_NAMES.items():
+        customer = session.get(Customer, fixed_id(key))
+        if customer is not None:
+            customer.name = name
+    for key, name in DEMO_TENANT_NAMES.items():
+        tenant = session.get(Tenant, fixed_id(key))
+        if tenant is not None:
+            tenant.name = name
+    session.commit()
+
+
 def seed_demo(session) -> dict:
     if session.get(Customer, fixed_id("cust:conflict")) is not None:
-        print("demo already seeded, skipping")
+        refresh_demo_labels(session)
+        print("demo already seeded, names refreshed")
         return {}
 
-    for tenant_id, name in [
-        (DEMO_TENANT_A, "Demo Tenant A"), (DEMO_TENANT_B, "Demo Tenant B"),
-        (DEMO_TENANT_C, "Demo Tenant C"), (DEMO_TENANT_OTHER, "Other Tenant"),
-    ]:
+    for key, name in DEMO_TENANT_NAMES.items():
+        tenant_id = fixed_id(key)
         if session.get(Tenant, tenant_id) is None:
             session.add(Tenant(id=tenant_id, name=name))
     session.flush()
