@@ -22,7 +22,7 @@ from app.services import claims as claims_service
 from app.services import entities
 from app.services.policy import get_policy
 
-# The model picks one of these five; Python picks the plan for it (step_plan).
+# The model picks one of these five
 PLANS: dict[str, list[tuple[str, dict]]] = {
     "daily_list": [("list_priority", {"limit": 10})],
     "one_customer": [("get_balance", {}), ("get_claims", {}), ("search_messages", {})],
